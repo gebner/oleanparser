@@ -25,7 +25,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
   let other ← read8
   let tag ← read8
   match tag with
-  | 245 => error "closure"
+  | 245 => error "closure" -- cannot be compacted
   | 246 =>
     let size ← read64LE
     let capacity ← read64LE
@@ -34,7 +34,13 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     let fields ← parseArrayElems objs size.toNat
     Obj.array fields
   | 247 => error "struct array"
-  | 248 => error "scalar array"
+  | 248 =>
+    let size ← read64LE
+    let capacity ← read64LE
+    unless size = capacity do
+      error s!"scalar array has different capacity={capacity} than size={size}"
+    let data ← readBytes capacity.toNat
+    Obj.sarray <| data.extract 0 size.toNat
   | 249 =>
     let size ← read64LE
     let capacity ← read64LE
@@ -45,8 +51,18 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     let utf8 := utf8.extract 0 (utf8.size - 1) -- drop zero terminator
     Obj.string <| String.fromUTF8Unchecked utf8 -- TODO
   | 250 => error "mpz"
-  | 251 => error "thunk"
-  | 252 => error "task"
+  | 251 =>
+    let value ← read64LE
+    let closure ← read64LE
+    unless closure = 0 do
+      error s!"thunk has non-zero closure"
+    Obj.thunk <|<- find objs value
+  | 252 =>
+    let value ← read64LE
+    let imp ← read64LE
+    unless imp = 0 do
+      error s!"task has non-zero implementation"
+    Obj.task <|<- find objs value
   | 253 =>
     Obj.ref (← find objs (← read64LE))
   | 254 => error "external"

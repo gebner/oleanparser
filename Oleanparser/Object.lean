@@ -11,8 +11,8 @@ inductive Obj
   | array (data : Array Obj)
   | sarray (data : ByteArray)
   | string (data : String)
-  -- | thunk
-  -- | task
+  | thunk (value : Obj)
+  | task (value : Obj)
   | ref (ref : Obj)
   -- | mpz
   deriving Inhabited
@@ -32,6 +32,8 @@ unsafe def countRefsCore (o : Obj) : StateM (RefMap Nat) Unit := do
   | Obj.array xs => xs.forM countRefsCore
   | Obj.sarray .. => ()
   | Obj.string .. => ()
+  | Obj.thunk x => x.countRefsCore
+  | Obj.task x => x.countRefsCore
   | Obj.ref x => x.countRefsCore
 
 unsafe def countRefs (o : Obj) : RefMap Nat :=
@@ -57,6 +59,8 @@ unsafe def reprCore : Obj → ReprM Format
         f!"Obj.ctor {idx}{Format.line}{← fields.mapM reprCore}{Format.line}{sfields}"
       | Obj.array fields => f!"{← fields.mapM reprCore}"
       | Obj.string s => repr s
+      | Obj.thunk v => f!"Obj.thunk{Format.line}{← reprCore v}"
+      | Obj.task v => f!"Obj.task{Format.line}{← reprCore v}"
       | Obj.ref r => f!"Obj.ref{Format.line}{← reprCore r}"
       | Obj.sarray bs => f!"Obj.sarray'{Format.line}{bs}"
       | Obj.scalar .. => unreachable!
