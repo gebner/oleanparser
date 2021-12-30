@@ -103,13 +103,13 @@ unsafe structure ReprState where
 open Std Lean ShareCommon in
 unsafe def Obj.reprCore : Obj → StateM ReprState Format
   | Obj.scalar n => repr n
-  | Obj.string s => repr s
   | o => do
     if let some res := (← get).ids.find? (unsafeCast o) then return res
     let res ← match o with
       | Obj.constructor ctor fields sfields =>
         s!"Obj.constructor {ctor} {← fields.mapM reprCore} {sfields}"
       | Obj.array fields => s!"{← fields.mapM reprCore}"
+      | Obj.string s => toString <| repr s
       | _ => panic "unexpected case"
     let newDeclId := s!"x{(← get).ids.size + 1}"
     modify fun st => { st with
