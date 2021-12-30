@@ -63,7 +63,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
       fields := fields.push (← find objs ptr)
     let sfields ← readBytes lenSFields
     -- dbg_trace s!"obj {cs_sz} {ctor} {numFields} {lenSFields} {other} {tag}"
-    Obj.constructor ctor.toNat fields sfields
+    Obj.ctor ctor.toNat fields sfields
 
 def advanceToAlignment : ByteArrayParser Unit := do
   modify fun pos =>

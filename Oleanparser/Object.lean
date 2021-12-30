@@ -1,8 +1,13 @@
 import Std
 
+open Std ShareCommon
+unsafe abbrev RefMap (α) := @Std.HashMap Object α ⟨Object.ptrEq⟩ ⟨Object.ptrHash⟩
+unsafe def RefMap.find? (m : RefMap β) (a : α) : Option β := HashMap.find? m (unsafeCast a)
+unsafe def RefMap.insert (m : RefMap β) (a : α) (b : β) : RefMap β := HashMap.insert m (unsafeCast a) b
+
 inductive Obj
   | scalar (n : Nat)
-  | constructor (ctor : Nat) (fields : Array Obj) (sfields : ByteArray)
+  | ctor (ctor : Nat) (fields : Array Obj) (sfields : ByteArray)
   | array (data : Array Obj)
   | sarray (data : ByteArray)
   | string (data : String)
@@ -12,35 +17,56 @@ inductive Obj
   -- | mpz
   deriving Inhabited
 
+namespace Obj
+
 instance : Coe Nat Obj := ⟨Obj.scalar⟩
 instance : Coe String Obj := ⟨Obj.string⟩
 
-open Std ShareCommon
+def sarray' (bs : List UInt8) := Obj.sarray bs.toByteArray
+
+unsafe def countRefsCore (o : Obj) : StateM (RefMap Nat) Unit := do
+  modify fun m => m.insert o (match m.find? o with | some i => i + 1 | none => 1)
+  match o with
+  | Obj.scalar .. => ()
+  | Obj.ctor _ xs _ => xs.forM countRefsCore
+  | Obj.array xs => xs.forM countRefsCore
+  | Obj.sarray .. => ()
+  | Obj.string .. => ()
+  | Obj.ref x => x.countRefsCore
+
+unsafe def countRefs (o : Obj) : RefMap Nat :=
+  o.countRefsCore.run {} |>.2
 
 unsafe structure ReprState where
-  ids : @Std.HashMap Object Format ⟨Object.ptrEq⟩ ⟨Object.ptrHash⟩ := {}
+  ids : RefMap Format := {}
   decls : Array Format := #[]
 
-unsafe def Obj.reprCore : Obj → StateM ReprState Format
+unsafe abbrev ReprM := StateM ReprState
+
+unsafe def ReprM.run (m : ReprM Format) : Format :=
+  StateT.run' (s := {}) <| show StateM ReprState Format from do
+  let fmt ← m
+  Format.joinSep ((← get).decls.push fmt |>.toList) "\n"
+
+unsafe def reprCore : Obj → ReprM Format
   | Obj.scalar n => repr n
   | o => do
-    if let some res := (← get).ids.find? (unsafeCast o) then return res
+    if let some res := (← get).ids.find? o then return res
     let res ← match o with
-      | Obj.constructor ctor fields sfields =>
-        s!"Obj.constructor {ctor} {← fields.mapM reprCore} {sfields}"
-      | Obj.array fields => s!"{← fields.mapM reprCore}"
-      | Obj.string s => toString <| repr s
-      | _ => panic "unexpected case"
+      | Obj.ctor idx fields sfields =>
+        f!"Obj.ctor {idx}{Format.line}{← fields.mapM reprCore}{Format.line}{sfields}"
+      | Obj.array fields => f!"{← fields.mapM reprCore}"
+      | Obj.string s => repr s
+      | Obj.ref r => f!"Obj.ref{Format.line}{← reprCore r}"
+      | Obj.sarray bs => f!"Obj.sarray'{Format.line}{bs}"
+      | Obj.scalar .. => unreachable!
+    let res := res.fill.nest 2
     let newDeclId := s!"x{(← get).ids.size + 1}"
     modify fun st => { st with
-      ids := st.ids.insert (unsafeCast o) newDeclId
-      decls := st.decls.push s!"let {newDeclId} := {res}"
+      ids := st.ids.insert o newDeclId
+      decls := st.decls.push f!"let {newDeclId} :={Format.line}{res}".group
     }
     return newDeclId
 
-unsafe def Obj.repr (o : Obj) : StateM ReprState Format := do
-  let fmt ← o.reprCore
-  Format.joinSep ((← get).decls.push fmt |>.toList) "\n"
-
 unsafe instance : Repr Obj where
-  reprPrec o _ := (o.repr.run {}).1
+  reprPrec o := Repr.addAppParen o.reprCore.run
