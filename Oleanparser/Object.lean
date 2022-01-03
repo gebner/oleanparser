@@ -14,7 +14,7 @@ inductive Obj
   | thunk (value : Obj)
   | task (value : Obj)
   | ref (ref : Obj)
-  -- | mpz
+  | mpz  -- TODO: decode
   deriving Inhabited
 
 namespace Obj
@@ -35,6 +35,7 @@ unsafe def countRefsCore (o : Obj) : StateM (RefMap Nat) Unit := do
   | Obj.thunk x => x.countRefsCore
   | Obj.task x => x.countRefsCore
   | Obj.ref x => x.countRefsCore
+  | Obj.mpz .. => ()
 
 unsafe def countRefs (o : Obj) : RefMap Nat :=
   o.countRefsCore.run {} |>.2
@@ -63,6 +64,7 @@ unsafe def reprCore : Obj → ReprM Format
       | Obj.task v => f!"Obj.task{Format.line}{← reprCore v}"
       | Obj.ref r => f!"Obj.ref{Format.line}{← reprCore r}"
       | Obj.sarray bs => f!"Obj.sarray'{Format.line}{bs}"
+      | Obj.mpz .. => f!"<mpz>"
       | Obj.scalar .. => unreachable!
     let res := res.fill.nest 2
     let newDeclId := s!"x{(← get).ids.size + 1}"

@@ -50,7 +50,13 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     let utf8 ← readBytes size.toNat
     let utf8 := utf8.extract 0 (utf8.size - 1) -- drop zero terminator
     Obj.string <| String.fromUTF8Unchecked utf8 -- TODO
-  | 250 => error "mpz"
+  | 250 =>
+    let capacity ← read32LE
+    let signSize ← read32LE
+    let limbsPtr ← read64LE
+    -- 8 = sizeof(mp_limb_t) = sizeof(unsigned long int)  (except on Windows? 😱)
+    let limbs ← readBytes (capacity.toNat * 8)
+    Obj.mpz
   | 251 =>
     let value ← read64LE
     let closure ← read64LE
