@@ -13,6 +13,8 @@ instance : Coe α Any := ⟨(⟨_, ·⟩)⟩
 unsafe def testData : Array Any :=
   #[123, "123", #[1,2,3], [1,2,3,4].toByteArray,
     (-1 : Int), (3.14 : Float),
+    123456789123456789123456789123456789,
+    (-123456789123456789123456789123456789 : Int),
     (Thunk.mk fun () => 123),
     (Task.spawn fun () => 123),
     unsafeBaseIO (IO.mkRef ())]

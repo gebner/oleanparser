@@ -67,5 +67,11 @@ def readBytes (sz : Nat) : ByteArrayParser ByteArray := do
   else
     error s!"eof before {sz} bytes"
 
+def readArray (n : Nat) (elem : ByteArrayParser α) : ByteArrayParser (Array α) := do
+  let mut arr := #[]
+  for i in [0:n] do
+    arr := arr.push (← elem)
+  arr
+
 def remaining : ByteArrayParser Nat :=
   return (← read).size - (← get)

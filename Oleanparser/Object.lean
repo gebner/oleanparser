@@ -14,7 +14,7 @@ inductive Obj
   | thunk (value : Obj)
   | task (value : Obj)
   | ref (ref : Obj)
-  | mpz  -- TODO: decode
+  | mpz (value : Int)
   deriving Inhabited
 
 namespace Obj
@@ -64,7 +64,7 @@ unsafe def reprCore : Obj → ReprM Format
       | Obj.task v => f!"Obj.task{Format.line}{← reprCore v}"
       | Obj.ref r => f!"Obj.ref{Format.line}{← reprCore r}"
       | Obj.sarray bs => f!"Obj.sarray'{Format.line}{bs}"
-      | Obj.mpz .. => f!"<mpz>"
+      | Obj.mpz v => f!"Obj.mpz{Format.line}{v}"
       | Obj.scalar .. => unreachable!
     let res := res.fill.nest 2
     let newDeclId := s!"x{(← get).ids.size + 1}"

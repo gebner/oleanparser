@@ -53,10 +53,19 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
   | 250 =>
     let capacity ← read32LE
     let signSize ← read32LE
+    let (size, sign) := -- TODO: implement Int32
+      if (signSize >>> 31) == 0 then
+        (signSize, 1)
+      else
+        (0-signSize, -1)
+    unless size = capacity do
+      error s!"string has different capacity={capacity} than size={size}"
     let limbsPtr ← read64LE
-    -- 8 = sizeof(mp_limb_t) = sizeof(unsigned long int)  (except on Windows? 😱)
-    let limbs ← readBytes (capacity.toNat * 8)
-    Obj.mpz
+    -- TODO: verify that limbsPtr starts here
+    let limbs ← readArray size.toNat read64LE -- mb_limb_t
+    let nat : Nat := limbs.foldr (init := 0) -- limbs are little-endian
+      fun limb acc => (acc <<< 64) ||| limb.toNat
+    Obj.mpz (sign * nat)
   | 251 =>
     let value ← read64LE
     let closure ← read64LE
