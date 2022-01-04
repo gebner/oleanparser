@@ -59,7 +59,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
       else
         (0-signSize, -1)
     unless size = capacity do
-      error s!"string has different capacity={capacity} than size={size}"
+      error s!"mpz has different capacity={capacity} than size={size}"
     let limbsPtr ← read64LE
     -- TODO: verify that limbsPtr starts here
     let limbs ← readArray size.toNat read64LE -- mb_limb_t
