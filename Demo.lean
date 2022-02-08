@@ -7,6 +7,7 @@ structure Any where
   a : α
 
 instance : Inhabited Any := ⟨_, ()⟩
+instance : OfNat Any n := ⟨_, ()⟩
 
 instance : Coe α Any := ⟨(⟨_, ·⟩)⟩
 

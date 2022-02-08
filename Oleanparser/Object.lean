@@ -27,15 +27,15 @@ def sarray' (bs : List UInt8) := Obj.sarray bs.toByteArray
 unsafe def countRefsCore (o : Obj) : StateM (RefMap Nat) Unit := do
   modify fun m => m.insert o (match m.find? o with | some i => i + 1 | none => 1)
   match o with
-  | Obj.scalar .. => ()
+  | Obj.scalar .. => pure ()
   | Obj.ctor _ xs _ => xs.forM countRefsCore
   | Obj.array xs => xs.forM countRefsCore
-  | Obj.sarray .. => ()
-  | Obj.string .. => ()
+  | Obj.sarray .. => pure ()
+  | Obj.string .. => pure ()
   | Obj.thunk x => x.countRefsCore
   | Obj.task x => x.countRefsCore
   | Obj.ref x => x.countRefsCore
-  | Obj.mpz .. => ()
+  | Obj.mpz .. => pure ()
 
 unsafe def countRefs (o : Obj) : RefMap Nat :=
   o.countRefsCore.run {} |>.2
@@ -49,22 +49,22 @@ unsafe abbrev ReprM := StateM ReprState
 unsafe def ReprM.run (m : ReprM Format) : Format :=
   StateT.run' (s := {}) <| show StateM ReprState Format from do
   let fmt ← m
-  Format.joinSep ((← get).decls.push fmt |>.toList) "\n"
+  pure <| Format.joinSep ((← get).decls.push fmt |>.toList) "\n"
 
 unsafe def reprCore : Obj → ReprM Format
-  | Obj.scalar n => repr n
+  | Obj.scalar n => pure <| repr n
   | o => do
     if let some res := (← get).ids.find? o then return res
     let res ← match o with
       | Obj.ctor idx fields sfields =>
-        f!"Obj.ctor {idx}{Format.line}{← fields.mapM reprCore}{Format.line}{sfields}"
-      | Obj.array fields => f!"{← fields.mapM reprCore}"
-      | Obj.string s => repr s
-      | Obj.thunk v => f!"Obj.thunk{Format.line}{← reprCore v}"
-      | Obj.task v => f!"Obj.task{Format.line}{← reprCore v}"
-      | Obj.ref r => f!"Obj.ref{Format.line}{← reprCore r}"
-      | Obj.sarray bs => f!"Obj.sarray'{Format.line}{bs}"
-      | Obj.mpz v => f!"Obj.mpz{Format.line}{v}"
+        pure f!"Obj.ctor {idx}{Format.line}{← fields.mapM reprCore}{Format.line}{sfields}"
+      | Obj.array fields => pure f!"{← fields.mapM reprCore}"
+      | Obj.string s => pure <| repr s
+      | Obj.thunk v => pure <| f!"Obj.thunk{Format.line}{← reprCore v}"
+      | Obj.task v => pure <| f!"Obj.task{Format.line}{← reprCore v}"
+      | Obj.ref r => pure <| f!"Obj.ref{Format.line}{← reprCore r}"
+      | Obj.sarray bs => pure <| f!"Obj.sarray'{Format.line}{bs}"
+      | Obj.mpz v => pure f!"Obj.mpz{Format.line}{v}"
       | Obj.scalar .. => unreachable!
     let res := res.fill.nest 2
     let newDeclId := s!"x{(← get).ids.size + 1}"

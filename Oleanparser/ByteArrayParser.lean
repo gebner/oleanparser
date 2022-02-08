@@ -20,7 +20,7 @@ def run (p : ByteArrayParser α) (b : ByteArray) (pos := 0) : Except ByteArrayPa
   (ReaderT.run p b).run pos
 
 def run' (p : ByteArrayParser α) (b : ByteArray) (pos := 0) : Except ByteArrayParser.Error α := do
-  (← p.run b pos).1
+  return (← p.run b pos).1
 
 @[inline]
 def error (msg : String) : ByteArrayParser α := do
@@ -30,7 +30,7 @@ def peek : ByteArrayParser UInt8 := do
   let ba ← read
   let pos ← get
   if h : pos < ba.size then
-    ba.get ⟨pos, h⟩
+    pure <| ba.get ⟨pos, h⟩
   else
     error "eof"
 
@@ -63,7 +63,7 @@ def readBytes (sz : Nat) : ByteArrayParser ByteArray := do
   let pos ← get
   let ba ← read
   if pos + sz <= ba.size then
-    ba.extract pos (pos + sz) <* modify (· + sz)
+    (pure <| ba.extract pos (pos + sz)) <* modify (· + sz)
   else
     error s!"eof before {sz} bytes"
 
@@ -71,7 +71,7 @@ def readArray (n : Nat) (elem : ByteArrayParser α) : ByteArrayParser (Array α)
   let mut arr := #[]
   for i in [0:n] do
     arr := arr.push (← elem)
-  arr
+  return arr
 
 def remaining : ByteArrayParser Nat :=
   return (← read).size - (← get)
