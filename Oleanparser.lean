@@ -6,9 +6,9 @@ open ByteArrayParser
 
 def find (objs : Std.HashMap UInt64 Obj) (ptr : UInt64) : ByteArrayParser Obj := do
   if ptr &&& 1 = 1 then
-    Obj.scalar <| ptr.toNat >>> 1
+    pure <| Obj.scalar <| ptr.toNat >>> 1
   else if let some obj := objs.find? ptr then
-    obj
+    pure <| obj
   else
     error s!"object not found: {ptr}"
 
@@ -16,7 +16,7 @@ def parseArrayElems (objs : Std.HashMap UInt64 Obj) (n : Nat) : ByteArrayParser 
   let mut arr := #[]
   for i in [0:n] do
     arr := arr.push (← find objs (← read64LE))
-  arr
+  pure <| arr
 
 def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
   let rc ← read32LE
@@ -32,7 +32,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     unless size = capacity do
       error s!"array has different capacity={capacity} than size={size}"
     let fields ← parseArrayElems objs size.toNat
-    Obj.array fields
+    pure <| Obj.array fields
   | 247 => error "struct array"
   | 248 =>
     let size ← read64LE
@@ -40,7 +40,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     unless size = capacity do
       error s!"scalar array has different capacity={capacity} than size={size}"
     let data ← readBytes capacity.toNat
-    Obj.sarray <| data.extract 0 size.toNat
+    pure <| Obj.sarray <| data.extract 0 size.toNat
   | 249 =>
     let size ← read64LE
     let capacity ← read64LE
@@ -49,7 +49,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
       error s!"string has different capacity={capacity} than size={size}"
     let utf8 ← readBytes size.toNat
     let utf8 := utf8.extract 0 (utf8.size - 1) -- drop zero terminator
-    Obj.string <| String.fromUTF8Unchecked utf8 -- TODO
+    pure <| Obj.string <| String.fromUTF8Unchecked utf8 -- TODO
   | 250 =>
     let capacity ← read32LE
     let signSize ← read32LE
@@ -65,21 +65,21 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     let limbs ← readArray size.toNat read64LE -- mb_limb_t
     let nat : Nat := limbs.foldr (init := 0) -- limbs are little-endian
       fun limb acc => (acc <<< 64) ||| limb.toNat
-    Obj.mpz (sign * nat)
+    pure <| Obj.mpz (sign * nat)
   | 251 =>
     let value ← read64LE
     let closure ← read64LE
     unless closure = 0 do
       error s!"thunk has non-zero closure"
-    Obj.thunk <|<- find objs value
+    pure <| Obj.thunk <|<- find objs value
   | 252 =>
     let value ← read64LE
     let imp ← read64LE
     unless imp = 0 do
       error s!"task has non-zero implementation"
-    Obj.task <|<- find objs value
+    pure <| Obj.task <|<- find objs value
   | 253 =>
-    Obj.ref (← find objs (← read64LE))
+    pure <| Obj.ref (← find objs (← read64LE))
   | 254 => error "external"
   | 255 => error "reserved"
   | ctor =>
@@ -94,7 +94,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
       fields := fields.push (← find objs ptr)
     let sfields ← readBytes lenSFields
     -- dbg_trace s!"obj {cs_sz} {ctor} {numFields} {lenSFields} {other} {tag}"
-    Obj.ctor ctor.toNat fields sfields
+    pure <| Obj.ctor ctor.toNat fields sfields
 
 def advanceToAlignment : ByteArrayParser Unit := do
   modify fun pos =>
