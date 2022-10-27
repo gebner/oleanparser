@@ -1,7 +1,7 @@
-import Std
+import Lean.Data.HashMap
 
-open Std ShareCommon
-unsafe abbrev RefMap (α) := @Std.HashMap Object α ⟨Object.ptrEq⟩ ⟨Object.ptrHash⟩
+open Std Lean ShareCommon
+unsafe abbrev RefMap (α) := @Lean.HashMap Object α ⟨Object.ptrEq⟩ ⟨Object.ptrHash⟩
 unsafe def RefMap.find? (m : RefMap β) (a : α) : Option β := HashMap.find? m (unsafeCast a)
 unsafe def RefMap.insert (m : RefMap β) (a : α) (b : β) : RefMap β := HashMap.insert m (unsafeCast a) b
 

@@ -1,10 +1,9 @@
 import Oleanparser.Object
 import Oleanparser.ByteArrayParser
-import Std
 open IO
 open ByteArrayParser
 
-def find (objs : Std.HashMap UInt64 Obj) (ptr : UInt64) : ByteArrayParser Obj := do
+def find (objs : Lean.HashMap UInt64 Obj) (ptr : UInt64) : ByteArrayParser Obj := do
   if ptr &&& 1 = 1 then
     pure <| Obj.scalar <| ptr.toNat >>> 1
   else if let some obj := objs.find? ptr then
@@ -12,13 +11,13 @@ def find (objs : Std.HashMap UInt64 Obj) (ptr : UInt64) : ByteArrayParser Obj :=
   else
     error s!"object not found: {ptr}"
 
-def parseArrayElems (objs : Std.HashMap UInt64 Obj) (n : Nat) : ByteArrayParser (Array Obj) := do
+def parseArrayElems (objs : Lean.HashMap UInt64 Obj) (n : Nat) : ByteArrayParser (Array Obj) := do
   let mut arr := #[]
   for i in [0:n] do
     arr := arr.push (← find objs (← read64LE))
   pure <| arr
 
-def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
+def parseObj (objs : Lean.HashMap UInt64 Obj) : ByteArrayParser Obj := do
   let rc ← read32LE
   unless rc = 0 do error s!"nonpersistent object: rc={rc}"
   let cs_sz ← read16LE
@@ -89,7 +88,7 @@ def parseObj (objs : Std.HashMap UInt64 Obj) : ByteArrayParser Obj := do
       error s!"cs_sz={cs_sz} not correct, should be larger than 8+8*{numFields}"
     let lenSFields := cs_sz.toNat - lenExceptSFields
     let mut fields := #[]
-    for i in [0:numFields] do
+    for _ in [0:numFields] do
       let ptr ← read64LE
       fields := fields.push (← find objs ptr)
     let sfields ← readBytes lenSFields
@@ -105,7 +104,7 @@ def parseOLean : ByteArrayParser Obj := do
   let pos0 ← get
   expectBs "oleanfile!!!!!!!".toUTF8
   let base ← read64LE
-  let mut objs : Std.HashMap UInt64 Obj := {}
+  let mut objs : Lean.HashMap UInt64 Obj := {}
   let root ← read64LE
   for _ in [0:←remaining] do
     advanceToAlignment
