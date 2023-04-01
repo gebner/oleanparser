@@ -73,5 +73,8 @@ def readArray (n : Nat) (elem : ByteArrayParser α) : ByteArrayParser (Array α)
     arr := arr.push (← elem)
   return arr
 
+def getOffset : ByteArrayParser Nat :=
+  get
+
 def remaining : ByteArrayParser Nat :=
   return (← read).size - (← get)
