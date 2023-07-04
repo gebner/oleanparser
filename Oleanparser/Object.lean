@@ -55,6 +55,11 @@ unsafe def countObjsCore (o : Obj) : StateM (RefMap Unit) Unit := do
   | Obj.ref x => x.countObjsCore
   | Obj.mpz .. => pure ()
 
+unsafe def countNewObjs (o : Obj) : StateM (RefMap Unit) Nat := do
+  let iniSz := (← get).size
+  o.countObjsCore.run
+  return (← get).size - iniSz
+
 unsafe def countObjs (o : Obj) : RefMap Unit :=
   o.countObjsCore.run {} |>.2
 
