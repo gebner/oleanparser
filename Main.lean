@@ -45,6 +45,8 @@ unsafe def runCmd (p : Parsed) : IO UInt32 := do
           for (name, c) in constNames.toArray!.zip constants.toArray! do
             let name := reifyName name
             let .ctor i #[.ctor _ args _] _ := c | unreachable!
+            -- count `ConstVal` signature objects, then body, then anything else
+            let sigObjs ← if i == 2 || i == 1 then args[0]!.countNewObjs else pure 0
             if name.getString?.any (·.startsWith "_cstage") || name.components.any (·.getString?.any (·.startsWith "_spec")) then
               m := m.inc "old compiler constants" (← c.countNewObjs)
             else if i == 2 then
@@ -54,7 +56,7 @@ unsafe def runCmd (p : Parsed) : IO UInt32 := do
               if !(reducibilityHints matches .ctor 1 ..) then
                 m := m.inc "non-abbrev def bodies" (← args[1]!.countNewObjs)
             let cat := #["axioms", "defs", "theorems", "opaques", "quots", "inductives", "inductives", "inductives"][i]!
-            m := m.inc cat (← c.countNewObjs)
+            m := m.inc cat <| sigObjs + (← c.countNewObjs)
           for e in entries.toArray! do
             let .ctor 0 #[extName, extEntries] _ := e | unreachable!
             let crefs := (← extEntries.countNewObjs) - 1  -- ignore containing array
