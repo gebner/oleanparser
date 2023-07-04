@@ -40,6 +40,24 @@ unsafe def countRefsCore (o : Obj) : StateM (RefMap Nat) Unit := do
 unsafe def countRefs (o : Obj) : RefMap Nat :=
   o.countRefsCore.run {} |>.2
 
+unsafe def countObjsCore (o : Obj) : StateM (RefMap Unit) Unit := do
+  if (← get).find? o |>.isSome then
+    return
+  modify fun m => m.insert o ()
+  match o with
+  | Obj.scalar .. => pure ()
+  | Obj.ctor _ xs _ => xs.forM countObjsCore
+  | Obj.array xs => xs.forM countObjsCore
+  | Obj.sarray .. => pure ()
+  | Obj.string .. => pure ()
+  | Obj.thunk x => x.countObjsCore
+  | Obj.task x => x.countObjsCore
+  | Obj.ref x => x.countObjsCore
+  | Obj.mpz .. => pure ()
+
+unsafe def countObjs (o : Obj) : RefMap Unit :=
+  o.countObjsCore.run {} |>.2
+
 unsafe structure ReprState where
   ids : RefMap Format := {}
   decls : Array Format := #[]

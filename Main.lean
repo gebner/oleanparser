@@ -40,16 +40,23 @@ unsafe def runCmd (p : Parsed) : IO UInt32 := do
     cumStats := st.stats
     if p.hasFlag "env-stats" then
       if let .ctor 0 #[_imports, constNames, constants, _extraConstNames, entries] _ := obj then
-        let cstage2Refs := StateT.run' (m := Id) (s := ∅) do
+        let cstage2Objs := StateT.run' (m := Id) (s := ∅) do
           for (name, c) in constNames.toArray!.zip constants.toArray! do
             let name := reifyName name
             if name.getString?.any (·.startsWith "_cstage") || name.components.any (·.getString?.any (·.startsWith "_spec")) then
-              c.countRefsCore
+              c.countObjsCore
           get
-        reachableObjsPerCat := reachableObjsPerCat.inc "old compiler constants" cstage2Refs.size
+        let opaqueObjs := StateT.run' (m := Id) (s := ∅) do
+          for (_, c) in constNames.toArray!.zip constants.toArray! do
+            if let .ctor i #[.ctor _ args _] _ := c then
+              if i == 2 || i == 3 then
+                args[1]!.countObjsCore
+          get
+        reachableObjsPerCat := reachableObjsPerCat.inc "old compiler constants" cstage2Objs.size
+        reachableObjsPerCat := reachableObjsPerCat.inc "opaque values" opaqueObjs.size
         for e in entries.toArray! do
           let .ctor 0 #[extName, extEntries] _ := e | unreachable!
-          let crefs := extEntries.countRefs.size - 1  -- ignore containing array
+          let crefs := extEntries.countObjs.size - 1  -- ignore containing array
           if crefs > 1 then
             reachableObjsPerCat := reachableObjsPerCat.inc (reifyName extName |> toString) crefs
   if p.hasFlag "stats" then
