@@ -3,27 +3,40 @@ import Oleanparser.ByteArrayParser
 open IO
 open ByteArrayParser
 
-def find (objs : Lean.HashMap UInt64 Obj) (ptr : UInt64) : ByteArrayParser Obj := do
+structure Stats where
+  bytesPerTag : Lean.HashMap UInt8 Nat := ∅
+  objsPerTag : Lean.HashMap UInt8 Nat := ∅
+  numPointers : Nat := 0
+
+structure State where
+  stats : Stats := {}
+
+abbrev M := StateT State ByteArrayParser
+def M.run (act : M α) (b : ByteArray) (stats : Stats := {}) := StateT.run act { stats } |>.run b
+
+def find (objs : Lean.HashMap UInt64 Obj) (ptr : UInt64) : M Obj := do
   if ptr &&& 1 = 1 then
     pure <| Obj.scalar <| ptr.toNat >>> 1
   else if let some obj := objs.find? ptr then
+    modify fun st => { st with stats.numPointers := st.stats.numPointers + 1 }
     pure <| obj
   else
     error s!"object not found: {ptr}"
 
-def parseArrayElems (objs : Lean.HashMap UInt64 Obj) (n : Nat) : ByteArrayParser (Array Obj) := do
+def parseArrayElems (objs : Lean.HashMap UInt64 Obj) (n : Nat) : M (Array Obj) := do
   let mut arr := #[]
   for i in [0:n] do
     arr := arr.push (← find objs (← read64LE))
   pure <| arr
 
-def parseObj (objs : Lean.HashMap UInt64 Obj) : ByteArrayParser Obj := do
+def parseObj (objs : Lean.HashMap UInt64 Obj) : M Obj := do
+  let initOff ← getOffset
   let rc ← read32LE
   unless rc = 0 do error s!"nonpersistent object: rc={rc}"
   let cs_sz ← read16LE
   let other ← read8
   let tag ← read8
-  match tag with
+  let obj ← match tag with
   | 245 => error "closure" -- cannot be compacted
   | 246 =>
     let size ← read64LE
@@ -94,14 +107,20 @@ def parseObj (objs : Lean.HashMap UInt64 Obj) : ByteArrayParser Obj := do
     let sfields ← readBytes lenSFields
     -- dbg_trace s!"obj {cs_sz} {ctor} {numFields} {lenSFields} {other} {tag}"
     pure <| Obj.ctor ctor.toNat fields sfields
+  let endOff ← getOffset
+  modify fun st => { st with
+    stats.bytesPerTag := st.stats.bytesPerTag.insert tag (st.stats.bytesPerTag.findD tag 0 + endOff - initOff)
+    stats.objsPerTag := st.stats.objsPerTag.insert tag (st.stats.objsPerTag.findD tag 0 + 1)
+  }
+  return obj
 
 def advanceToAlignment : ByteArrayParser Unit := do
   modify fun pos =>
     let rem := pos % 8
     if rem = 0 then pos else pos + (8 - rem)
 
-def parseOLean : ByteArrayParser Obj := do
-  let pos0 ← get
+def parseOLean : M Obj := do
+  let pos0 ← getOffset
   expectBs "oleanfile!!!!!!!".toUTF8
   let base ← read64LE
   let mut objs : Lean.HashMap UInt64 Obj := {}
@@ -109,7 +128,7 @@ def parseOLean : ByteArrayParser Obj := do
   for _ in [0:←remaining] do
     advanceToAlignment
     unless (← remaining) > 0 do break
-    let pos ← get
+    let pos ← getOffset
     let obj ← parseObj objs
     let memPtr := base + (pos - pos0).toUInt64
     -- dbg_trace (pos, memPtr, reprStr obj)
